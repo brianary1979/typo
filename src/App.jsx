@@ -9,7 +9,7 @@ const VALID_KEYS = new Set('abcdefghijklmnopqrstuvwxyz'.split(''));
 
 export default function App() {
   const [root, setRoot]   = useState('C');
-  const [scale, setScale] = useState('major');
+  const [scale, setScale] = useState('pentatonic');
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [started, setStarted] = useState(false);
   const [typed, setTyped] = useState('');

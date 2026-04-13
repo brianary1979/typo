@@ -101,61 +101,88 @@ header h1 {
   font-size: 14px;
 }
 
-/* Keyboard visualizer */
-.keyboard {
+/* Orb animations */
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 4px rgba(124,58,237,0.08); }
+  50%       { transform: scale(1.04); box-shadow: 0 0 10px rgba(124,58,237,0.18); }
+}
+
+@keyframes pulse-active {
+  0%, 100% { box-shadow: 0 0 12px rgba(168,85,247,0.7), 0 0 32px rgba(124,58,237,0.4), 0 0 64px rgba(109,40,217,0.2); }
+  50%       { box-shadow: 0 0 20px rgba(168,85,247,0.9), 0 0 48px rgba(124,58,237,0.6), 0 0 80px rgba(109,40,217,0.3); }
+}
+
+/* Orb field */
+.orb-field {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
+  padding: 12px 0;
 }
 
-.key-row {
+.orb-row {
   display: flex;
-  gap: 6px;
+  gap: 12px;
 }
 
-.key {
-  width: 60px;
-  height: 60px;
-  background: var(--key-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+.orb {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%, #1e1e2e 0%, #0d0d14 100%);
+  border: 1px solid #2a2a3e;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  transition: background 0.08s, box-shadow 0.08s, border-color 0.08s;
+  gap: 2px;
+  cursor: default;
   user-select: none;
+  animation: breathe 3.5s ease-in-out infinite;
+  /* Stagger each orb's breathing so they don't all pulse in unison */
+  animation-delay: calc(var(--orb-index, 0) * 0.13s);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.key.active {
-  background: var(--key-active);
-  border-color: var(--key-active);
-  box-shadow: 0 0 16px var(--key-active-glow);
+.orb.active {
+  background: radial-gradient(circle at 38% 36%, #a855f7 0%, #6d28d9 60%, #3b0764 100%);
+  border-color: #c084fc;
+  animation: pulse-active 0.6s ease-in-out infinite;
+  transform: scale(1.1);
 }
 
-.key-letter {
+.orb-letter {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text-bright);
-  line-height: 1;
-}
-
-.key-note {
-  font-size: 9px;
+  font-weight: 400;
   color: var(--text);
+  line-height: 1;
   letter-spacing: 0.05em;
+  transition: color 0.12s;
 }
 
-.key.active .key-note {
-  color: rgba(255,255,255,0.7);
+.orb.active .orb-letter {
+  color: #fff;
+  font-weight: 500;
+}
+
+.orb-note {
+  font-size: 9px;
+  color: #3d3d55;
+  letter-spacing: 0.04em;
+  transition: color 0.12s;
+}
+
+.orb.active .orb-note {
+  color: rgba(255,255,255,0.6);
 }
 
 @media (max-width: 640px) {
   header h1 { font-size: 48px; }
-  .key { width: 34px; height: 44px; }
-  .key-letter { font-size: 11px; }
-  .key-note { display: none; }
+  .orb { width: 36px; height: 36px; }
+  .orb-letter { font-size: 10px; }
+  .orb-note { display: none; }
+  .orb-row { gap: 7px; }
+  .orb-field { gap: 7px; }
 }
