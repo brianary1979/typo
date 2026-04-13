@@ -212,12 +212,38 @@ export function useAudio(root, scaleName) {
       g.gain.rampTo(0, 0.07);
     }
     voicesRef.current.forEach(v => v.reset());
+
+    // Temporarily shorten all release envelopes so notes scheduled just ahead in
+    // the Tone.js lookahead window die almost instantly instead of hanging audibly
+    const synths = [
+      { ref: v1SynthRef, release: 2.5, modRelease: 2.0 },
+      { ref: v2SynthRef, release: 3.0 },
+      { ref: v3SynthRef, release: 4.0 },
+      { ref: padRef,     release: 6.0 },
+      { ref: chordRef,   release: 5.0 },
+    ];
+    synths.forEach(({ ref }) => {
+      const s = ref.current;
+      if (!s) return;
+      s.set({ envelope: { release: 0.05 } });
+      if (s.get().modulationEnvelope !== undefined) s.set({ modulationEnvelope: { release: 0.05 } });
+    });
+
     [v1SynthRef, v2SynthRef, v3SynthRef, padRef, chordRef].forEach(r => r.current?.releaseAll());
     padNotesRef.current              = {};
     moodRef.current.userPitchWeights = {};
     moodRef.current.userDensityBoost = 0;
-    // Restore gain after fade completes
-    setTimeout(() => g?.gain.rampTo(1, 0.15), 150);
+
+    // Restore original release times and master gain after silence window
+    setTimeout(() => {
+      synths.forEach(({ ref, release, modRelease }) => {
+        const s = ref.current;
+        if (!s) return;
+        s.set({ envelope: { release } });
+        if (modRelease !== undefined) s.set({ modulationEnvelope: { release: modRelease } });
+      });
+      g?.gain.rampTo(1, 0.15);
+    }, 200);
   }, []);
 
   // Key/scale change: flush state, reseed harmonic context
