@@ -12,6 +12,7 @@ export function useAudio(root, scaleName) {
   const v3SynthRef    = useRef(null);
   const padRef        = useRef(null);
   const chordRef      = useRef(null);
+  const masterGainRef = useRef(null);
 
   // Voices
   const voicesRef     = useRef([]);
@@ -47,8 +48,10 @@ export function useAudio(root, scaleName) {
 
     // ── Master bus ──────────────────────────────────────────────────────────
     const limiter    = new Tone.Limiter(-2).toDestination();
+    const masterGain = new Tone.Gain(1).connect(limiter);
+    masterGainRef.current = masterGain;
     const compressor = new Tone.Compressor({ threshold: -18, ratio: 3, attack: 0.01, release: 0.2 })
-      .connect(limiter);
+      .connect(masterGain);
     const reverb     = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.5 })
       .connect(compressor);
     const feedDelay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.28, wet: 0.22 })
@@ -202,11 +205,19 @@ export function useAudio(root, scaleName) {
   }, []);
 
   const stopAll = useCallback(() => {
+    // Fade master gain to silence fast so long-release notes don't bleed into the new key
+    const g = masterGainRef.current;
+    if (g) {
+      g.gain.cancelScheduledValues(Tone.now());
+      g.gain.rampTo(0, 0.07);
+    }
     voicesRef.current.forEach(v => v.reset());
     [v1SynthRef, v2SynthRef, v3SynthRef, padRef, chordRef].forEach(r => r.current?.releaseAll());
     padNotesRef.current              = {};
     moodRef.current.userPitchWeights = {};
     moodRef.current.userDensityBoost = 0;
+    // Restore gain after fade completes
+    setTimeout(() => g?.gain.rampTo(1, 0.15), 150);
   }, []);
 
   // Key/scale change: flush state, reseed harmonic context
