@@ -11,35 +11,78 @@ export function pickWeighted(items, weights) {
   return items[items.length - 1];
 }
 
+// Weighted random duration selection from a { dur: weight } pool
+function pickDuration(pool) {
+  const keys = Object.keys(pool);
+  const vals = keys.map(k => pool[k]);
+  return pickWeighted(keys, vals);
+}
+
 // An autonomous generative voice. Reads from shared harmonicCtx + moodRef,
-// makes musical decisions (pitch weights, interval memory, motif replay).
+// makes musical decisions (pitch weights, interval memory, motif replay, contour).
 export class GenerativeVoice {
-  constructor({ synth, harmonicCtx, moodRef, midiMin = 48, midiMax = 83, noteDur = '8n' }) {
-    this.synth       = synth;
-    this.harmonicCtx = harmonicCtx;
-    this.moodRef     = moodRef;
-    this.midiMin     = midiMin;
-    this.midiMax     = midiMax;
-    this.noteDur     = noteDur;
-    this.motifBuf    = [];   // last 5 notes played — used for motif replay
+  constructor({ synth, harmonicCtx, moodRef, midiMin = 48, midiMax = 83,
+                noteDur = '8n', durationPool = null, restProb = 0.12 }) {
+    this.synth        = synth;
+    this.harmonicCtx  = harmonicCtx;
+    this.moodRef      = moodRef;
+    this.midiMin      = midiMin;
+    this.midiMax      = midiMax;
+    this.noteDur      = noteDur;
+    this.durationPool = durationPool; // { '8n': 0.4, '4n': 0.3, ... } overrides noteDur
+    this.restProb     = restProb;     // independent breath rest probability
+
+    this.motifBuf    = [];
     this.lastMidi    = null;
-    this.lastDelta   = 0;    // interval of last move, for recovery bias
+    this.lastDelta   = 0;
+
+    // Melodic contour: slow arc over 7–11 notes (-1 low bias, +1 high bias)
+    this.contourPhase = 0;
+    this.contourLen   = 7 + Math.floor(Math.random() * 5);
+    this.contourDir   = Math.random() < 0.5 ? 1 : -1;
+    this.contourValue = 0;
+
+    // Velocity: slow random walk
+    this.velocityBase = 0.45 + Math.random() * 0.15;
+
+    // Voice leading: track last chord seen to detect changes
+    this.lastChordKey = '';
   }
 
   tick(time) {
     const density = this.moodRef.current?.density ?? 0.55;
-    if (Math.random() > density) return; // rest
+    if (Math.random() > density) return;
+    if (Math.random() < this.restProb) return; // breath rest
 
     const pool = this.getPool();
     if (pool.length === 0) return;
 
-    // 40% motif replay (creates repetition the ear reads as "intentional")
-    // 60% fresh probabilistic generation
-    const note = (this.motifBuf.length >= 3 && Math.random() < 0.4)
-      ? this.fromMotif(pool)
-      : this.generate(pool);
+    const currentChordMidis = this.harmonicCtx.current?.chordMidis ?? [];
+    const chordKey = currentChordMidis.join(',');
+    const chordChanged = chordKey !== this.lastChordKey;
+    this.lastChordKey = chordKey;
+
+    let note;
+    if (chordChanged && this.lastMidi !== null) {
+      // Voice lead: move to nearest chord tone on chord change
+      note = this.voiceLead(pool, currentChordMidis);
+    } else if (this.motifBuf.length >= 3 && Math.random() < 0.4) {
+      note = this.fromMotif(pool);
+    } else {
+      note = this.generate(pool);
+    }
 
     if (!note) return;
+
+    // Advance contour arc
+    this.contourPhase++;
+    if (this.contourPhase >= this.contourLen) {
+      this.contourPhase = 0;
+      this.contourDir   = -this.contourDir;
+      this.contourLen   = 7 + Math.floor(Math.random() * 5);
+    }
+    const t = this.contourPhase / this.contourLen;
+    this.contourValue = Math.sin(t * Math.PI) * this.contourDir;
 
     // Update memory
     const midi = noteToMidi(note);
@@ -48,15 +91,23 @@ export class GenerativeVoice {
     this.motifBuf.push(note);
     if (this.motifBuf.length > 5) this.motifBuf.shift();
 
-    // Humanize timing and velocity
-    const jitter   = (Math.random() - 0.5) * 0.018;
-    const isAccent = Math.random() < 0.25; // occasional accent
-    const velocity = isAccent ? 0.65 + Math.random() * 0.25 : 0.3 + Math.random() * 0.35;
+    // Velocity: contour peak = louder, chord tone = louder, slow walk
+    const chordPcs    = currentChordMidis.map(m => ((m % 12) + 12) % 12);
+    const pc          = ((midi % 12) + 12) % 12;
+    const isChordTone = chordPcs.includes(pc);
+    const contourBoost = this.contourValue * 0.15;
+    const chordBoost   = isChordTone ? 0.08 : -0.06;
+    this.velocityBase  = Math.max(0.28, Math.min(0.88,
+      this.velocityBase + (Math.random() - 0.5) * 0.04));
+    const velocity = Math.max(0.15, Math.min(0.95,
+      this.velocityBase + contourBoost + chordBoost));
 
-    this.synth.triggerAttackRelease(note, this.noteDur, time + Math.max(0, jitter), velocity);
+    const jitter = (Math.random() - 0.5) * 0.02;
+    const dur    = this.durationPool ? pickDuration(this.durationPool) : this.noteDur;
+
+    this.synth.triggerAttackRelease(note, dur, time + Math.max(0, jitter), velocity);
   }
 
-  // Filter the global arp pool to this voice's register range
   getPool() {
     const all      = this.harmonicCtx.current?.arpPool ?? [];
     const filtered = all.filter(n => {
@@ -66,39 +117,60 @@ export class GenerativeVoice {
     return filtered.length >= 2 ? filtered : all;
   }
 
-  // Probabilistic note selection with three layers of bias:
-  // 1. Chord tones get higher weight (always consonant)
-  // 2. User pitch class boosts (typing influence)
-  // 3. Interval memory (stepwise recovery after leaps)
+  // Find nearest chord tone in pool to lastMidi for smooth transition
+  voiceLead(pool, chordMidis) {
+    if (!this.lastMidi || chordMidis.length === 0) return this.generate(pool);
+    const chordPcs = chordMidis.map(c => ((c % 12) + 12) % 12);
+    let bestNote = null, bestDist = Infinity;
+    for (const note of pool) {
+      const m  = noteToMidi(note);
+      const pc = ((m % 12) + 12) % 12;
+      if (!chordPcs.includes(pc)) continue;
+      const dist = Math.abs(m - this.lastMidi);
+      if (dist < bestDist) { bestDist = dist; bestNote = note; }
+    }
+    return bestNote ?? this.generate(pool);
+  }
+
   generate(pool) {
     const chordMidis = this.harmonicCtx.current?.chordMidis ?? [];
+    const tension    = this.moodRef.current?.tension ?? 0;
     const userW      = this.moodRef.current?.userPitchWeights ?? {};
+    const midRange   = (this.midiMin + this.midiMax) / 2;
 
     const weights = pool.map(note => {
       const midi = noteToMidi(note);
       let w = 1.0;
 
-      // Chord tone bias
-      const pc      = ((midi % 12) + 12) % 12;
+      // Chord tone bias — loosens at high tension to allow extensions
+      const pc       = ((midi % 12) + 12) % 12;
       const chordPcs = chordMidis.map(m => ((m % 12) + 12) % 12);
-      if (chordPcs.includes(pc)) w *= 2.5;
+      const chordBias = 1.5 + (1 - tension) * 1.5; // 1.5 tense → 3.0 resolved
+      if (chordPcs.includes(pc)) w *= chordBias;
+      else if (tension > 0.6)    w *= (0.5 + tension * 0.5); // extensions ok at tension
 
-      // User pitch class boost (from recent keypresses)
+      // User pitch class boost
       const name = note.replace(/\d+$/, '');
       if (userW[name]) w *= (1 + userW[name] * 2);
 
-      // Interval memory: penalize large leaps, reward recovery
+      // Contour bias: positive = favor higher notes in range
+      const normalised = (midi - midRange) / ((this.midiMax - this.midiMin) / 2 || 1);
+      w *= Math.exp(this.contourValue * normalised * 2.5);
+
+      // Interval memory: penalize leaps, reward stepwise recovery
       if (this.lastMidi !== null) {
         const delta = midi - this.lastMidi;
-        if (Math.abs(delta) > 9)      w *= 0.2;  // heavily penalize 7th+ leaps
-        else if (Math.abs(delta) > 5) w *= 0.6;  // softer penalty for 5th/6th
-
-        // After a leap, bias toward stepwise motion back (vocal phrasing rule)
+        if (Math.abs(delta) > 9)      w *= 0.2;
+        else if (Math.abs(delta) > 5) w *= 0.6;
         if (Math.abs(this.lastDelta) > 5) {
           const recoverDir = this.lastDelta > 0 ? -1 : 1;
           if (Math.sign(delta) === recoverDir && Math.abs(delta) <= 4) w *= 2.2;
         }
       }
+
+      // Tessitura gravity: pull back toward midpoint when drifted far
+      const drift = Math.abs(midi - midRange) / ((this.midiMax - this.midiMin) / 2 || 1);
+      if (drift > 0.7) w *= Math.max(0.3, 1 - (drift - 0.7) * 1.5);
 
       return Math.max(0.01, w);
     });
@@ -106,21 +178,50 @@ export class GenerativeVoice {
     return pickWeighted(pool, weights);
   }
 
-  // Replay from motif buffer with occasional one-note variation
   fromMotif(pool) {
     if (!this.motifBuf.length) return this.generate(pool);
     const motif = [...this.motifBuf];
-    // 25% chance to vary one note — keeps it from being mechanical repetition
-    if (Math.random() < 0.25) {
+    const roll  = Math.random();
+
+    if (roll < 0.15) {
+      // Inversion: flip interval around first note
+      const rootMidi = noteToMidi(motif[0]);
+      const srcMidi  = noteToMidi(motif[Math.floor(Math.random() * motif.length)]);
+      return this._findNearest(pool, rootMidi - (srcMidi - rootMidi));
+    } else if (roll < 0.25) {
+      // Retrograde: reversed motif
+      return [...motif].reverse()[Math.floor(Math.random() * motif.length)];
+    } else if (roll < 0.35) {
+      // Sequence: transpose by ±2 semitones (approximate step)
+      const delta = Math.random() < 0.5 ? 2 : -2;
+      const src   = noteToMidi(motif[Math.floor(Math.random() * motif.length)]);
+      return this._findNearest(pool, src + delta);
+    } else if (roll < 0.60) {
+      // One-note variation
       motif[Math.floor(Math.random() * motif.length)] =
         pool[Math.floor(Math.random() * pool.length)];
+      return motif[Math.floor(Math.random() * motif.length)];
+    } else {
+      // Straight replay
+      return motif[Math.floor(Math.random() * motif.length)];
     }
-    return motif[Math.floor(Math.random() * motif.length)];
+  }
+
+  _findNearest(pool, targetMidi) {
+    let best = pool[0], bestDist = Infinity;
+    for (const note of pool) {
+      const d = Math.abs(noteToMidi(note) - targetMidi);
+      if (d < bestDist) { bestDist = d; best = note; }
+    }
+    return best;
   }
 
   reset() {
-    this.motifBuf  = [];
-    this.lastMidi  = null;
-    this.lastDelta = 0;
+    this.motifBuf     = [];
+    this.lastMidi     = null;
+    this.lastDelta    = 0;
+    this.contourPhase = 0;
+    this.contourDir   = Math.random() < 0.5 ? 1 : -1;
+    this.lastChordKey = '';
   }
 }
