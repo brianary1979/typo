@@ -8,7 +8,7 @@ let globalIndex = 0;
 const ORB_INDEX = {};
 ROWS.forEach(row => row.forEach(k => { ORB_INDEX[k] = globalIndex++; }));
 
-export default function KeyVisualizer({ activeKeys, keyMap }) {
+export default function KeyVisualizer({ activeKeys, keyMap, onOrbDown, onOrbUp }) {
   return (
     <div className="orb-field">
       {ROWS.map((row, ri) => (
@@ -22,6 +22,10 @@ export default function KeyVisualizer({ activeKeys, keyMap }) {
                 className={`orb ${active ? 'active' : ''}`}
                 style={{ '--orb-index': ORB_INDEX[k] }}
                 title={note}
+                onPointerDown={e => { e.preventDefault(); onOrbDown?.(k); }}
+                onPointerUp={e => { e.preventDefault(); onOrbUp?.(k); }}
+                onPointerLeave={e => { if (e.buttons > 0 || e.pointerType === 'touch') onOrbUp?.(k); }}
+                onPointerCancel={() => onOrbUp?.(k)}
               >
                 <span className="orb-letter">{k.toUpperCase()}</span>
                 {note && <span className="orb-note">{note}</span>}

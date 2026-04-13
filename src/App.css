@@ -138,8 +138,10 @@ header h1 {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  cursor: default;
+  cursor: pointer;
   user-select: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
   animation: breathe 3.5s ease-in-out infinite;
   /* Stagger each orb's breathing so they don't all pulse in unison */
   animation-delay: calc(var(--orb-index, 0) * 0.13s);
@@ -179,10 +181,21 @@ header h1 {
 }
 
 @media (max-width: 640px) {
+  .app { padding: 24px 12px 40px; gap: 20px; }
   header h1 { font-size: 48px; }
-  .orb { width: 36px; height: 36px; }
-  .orb-letter { font-size: 10px; }
+  .controls { gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .controls select { min-width: 90px; font-size: 13px; padding: 6px 10px; }
+  .orb { width: 30px; height: 30px; }
+  .orb-letter { font-size: 9px; }
   .orb-note { display: none; }
-  .orb-row { gap: 7px; }
-  .orb-field { gap: 7px; }
+  .orb-row { gap: 5px; }
+  .orb-field { gap: 6px; }
+  .typed-display { font-size: 16px; }
+  .start-btn { padding: 14px 36px; }
+}
+
+@media (max-width: 400px) {
+  .orb { width: 26px; height: 26px; }
+  .orb-letter { font-size: 8px; }
+  .orb-row { gap: 4px; }
 }

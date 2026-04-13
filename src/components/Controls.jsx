@@ -1,6 +1,7 @@
 import { ROOTS, SCALES } from '../lib/scales.js';
+import { PRESETS } from '../lib/presets.js';
 
-export default function Controls({ root, setRoot, scale, setScale }) {
+export default function Controls({ root, setRoot, scale, setScale, preset, setPreset }) {
   return (
     <div className="controls">
       <label>
@@ -13,6 +14,14 @@ export default function Controls({ root, setRoot, scale, setScale }) {
         <span>Mode</span>
         <select value={scale} onChange={e => setScale(e.target.value)}>
           {Object.entries(SCALES).map(([k, v]) => (
+            <option key={k} value={k}>{v.name}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>Sound</span>
+        <select value={preset} onChange={e => setPreset(e.target.value)}>
+          {Object.entries(PRESETS).map(([k, v]) => (
             <option key={k} value={k}>{v.name}</option>
           ))}
         </select>
