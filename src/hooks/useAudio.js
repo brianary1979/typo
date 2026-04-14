@@ -33,6 +33,7 @@ export function useAudio(root, scaleName, presetName) {
   const v3LoopRef     = useRef(null);
 
   const progressionRef   = useRef(null);
+  const fireChordRef     = useRef(null);
   const keyMapRef        = useRef({});
   const padNotesRef      = useRef({});
   const startedRef       = useRef(false);
@@ -169,16 +170,15 @@ export function useAudio(root, scaleName, presetName) {
       chordRef.current?.triggerAttackRelease(chord, '2m', time);
       harmonyRef.current?.releaseAll();
       harmonyRef.current?.triggerAttackRelease(rootlessPad, duration, time + 0.05);
-
-      // Sub-bass: trigger attack (MonoSynth auto-releases previous note)
       subBassRef.current?.triggerAttack(subBassNote, time + 0.1);
 
       const durationSec = Tone.Time(duration).toSeconds();
       nextChordTimeRef.current = time + durationSec;
       Tone.getDraw().schedule(() => {
-        fireChord(nextChordTimeRef.current);
+        fireChordRef.current?.(nextChordTimeRef.current);
       }, nextChordTimeRef.current - 0.1);
     }
+    fireChordRef.current = fireChord;
 
     // Seed first chord
     const seed = progressionRef.current();
@@ -189,7 +189,7 @@ export function useAudio(root, scaleName, presetName) {
     const firstDurSec = Tone.Time(seed.duration).toSeconds();
     nextChordTimeRef.current = Tone.now() + firstDurSec;
     Tone.getDraw().schedule(() => {
-      fireChord(nextChordTimeRef.current);
+      fireChordRef.current?.(nextChordTimeRef.current);
     }, nextChordTimeRef.current - 0.1);
 
     // ── Meta loop ───────────────────────────────────────────────────────────
@@ -235,6 +235,10 @@ export function useAudio(root, scaleName, presetName) {
   }, []);
 
   const stopAll = useCallback(() => {
+    // Cancel any pending chord scheduling — prevents stale fireChord callbacks
+    // from triggering attacks after releaseAll, which is the root cause of stuck notes
+    Tone.getDraw().cancel(Tone.now());
+
     const g = masterGainRef.current;
     if (g) {
       g.gain.cancelScheduledValues(Tone.now());
@@ -282,18 +286,25 @@ export function useAudio(root, scaleName, presetName) {
     }, 200);
   }, []);
 
-  // Key/scale change: flush and reseed
+  // Key/scale change: flush, reseed, and restart the chord chain cleanly
   useEffect(() => {
     if (!startedRef.current) return;
-    stopAll();
+    stopAll(); // cancels pending getDraw callbacks + fades out
     keyMapRef.current      = buildKeyMap(root, scaleName);
     progressionRef.current = createProgressionGenerator(root, scaleName);
     const result = progressionRef.current();
     harmonicCtx.current = { arpPool: buildArpPool(result.chord), chordMidis: result.chord.map(noteToMidi) };
     setTimeout(() => {
-      chordRef.current?.triggerAttackRelease(result.chord, '2m', Tone.now() + 0.1);
-      harmonyRef.current?.triggerAttackRelease(result.rootlessPad, result.duration, Tone.now() + 0.15);
-      subBassRef.current?.triggerAttack(result.subBassNote, Tone.now() + 0.2);
+      const now = Tone.now();
+      chordRef.current?.triggerAttackRelease(result.chord, '2m', now + 0.1);
+      harmonyRef.current?.triggerAttackRelease(result.rootlessPad, result.duration, now + 0.15);
+      subBassRef.current?.triggerAttack(result.subBassNote, now + 0.2);
+      // Restart the chain — stopAll cancelled the old one
+      const durationSec = Tone.Time(result.duration).toSeconds();
+      nextChordTimeRef.current = now + durationSec;
+      Tone.getDraw().schedule(() => {
+        fireChordRef.current?.(nextChordTimeRef.current);
+      }, nextChordTimeRef.current - 0.1);
     }, 250);
   }, [root, scaleName, stopAll]);
 
