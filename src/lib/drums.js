@@ -1,8 +1,10 @@
 import * as Tone from 'tone';
 
 // 16-step pattern — 1 = always, 0 = never, 0.x = probability
-const KICK  = [1, 0, 0, 0,  0, 0, 0.18, 0,  1, 0, 0, 0.12,  0, 0, 0.15, 0];
-const SNARE = [0, 0, 0, 0,  1, 0, 0,    0,  0, 0, 0, 0,     1, 0, 0,    0.1];
+// Kick is sparse — just the anchor on beat 1, occasional ghost on beat 3
+const KICK  = [1, 0, 0, 0,  0, 0, 0,    0,  0.25, 0, 0, 0,  0, 0, 0.1, 0];
+// Snare on 2 and 4, lots of ghost notes in between
+const SNARE = [0, 0, 0.15, 0,  1, 0.12, 0.2, 0.1,  0, 0.15, 0.1, 0,  1, 0.12, 0.18, 0.2];
 const HIHAT = [0.8, 0, 0.85, 0,  0.8, 0, 0.85, 0,  0.8, 0, 0.85, 0,  0.8, 0, 0.85, 0.4];
 
 export function createDrums(destination) {
@@ -38,7 +40,9 @@ export function createDrums(destination) {
 
     const sv = SNARE[s];
     if (sv === 1 || (sv > 0 && Math.random() < sv)) {
-      snare.triggerAttackRelease('8n', time, 0.45 + Math.random() * 0.3);
+      // Full hits loud, ghost notes soft
+      const vel = sv === 1 ? 0.55 + Math.random() * 0.25 : 0.1 + Math.random() * 0.12;
+      snare.triggerAttackRelease('8n', time, vel);
     }
 
     const hv = HIHAT[s];
