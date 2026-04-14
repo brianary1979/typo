@@ -8,9 +8,9 @@ import './App.css';
 const VALID_KEYS = new Set('abcdefghijklmnopqrstuvwxyz'.split(''));
 
 export default function App() {
-  const [root, setRoot]     = useState('C');
-  const [scale, setScale]   = useState('pentatonic');
-  const [preset, setPreset] = useState('ethereal');
+  const [root, setRoot]     = useState('D#');
+  const [scale, setScale]   = useState('dorian');
+  const [preset, setPreset] = useState('strings');
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [started, setStarted] = useState(false);
   const [typed, setTyped]   = useState('');

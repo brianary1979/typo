@@ -60,17 +60,17 @@ export const PRESETS = {
     // characteristic of deadmau5 / progressive house pads
     v1: {
       harmonicity: 0.5, modulationIndex: 0.15,
-      oscillator: { type: 'fatsawtooth', count: 3, spread: 25 },
+      oscillator: { type: 'fatsawtooth', count: 2, spread: 20 },
       modulation: { type: 'sawtooth' },
       envelope:           { attack: 0.7,  decay: 0.4, sustain: 0.9,  release: 4.5 },
       modulationEnvelope: { attack: 1.0,  decay: 0.5, sustain: 0.6,  release: 4.0 },
       volume: -12,
     },
     v2:      { oscillator: { type: 'fatsawtooth', count: 2, spread: 15 }, envelope: { attack: 0.4,  decay: 0.3, sustain: 0.85, release: 5.0 }, volume: -17 },
-    v3:      { oscillator: { type: 'fatsawtooth', count: 2, spread: 10 }, envelope: { attack: 1.0,  decay: 0.4, sustain: 0.9,  release: 5.5 }, volume: -14 },
+    v3:      { oscillator: { type: 'sawtooth' },                          envelope: { attack: 1.0,  decay: 0.4, sustain: 0.9,  release: 5.5 }, volume: -14 },
     pad:     { oscillator: { type: 'fatsawtooth', count: 2, spread: 20 }, envelope: { attack: 0.6,  decay: 0.3, sustain: 0.9,  release: 7.0 }, volume: -14 },
-    chord:   { oscillator: { type: 'fatsawtooth', count: 3, spread: 25 }, envelope: { attack: 1.0,  decay: 0.5, sustain: 0.9,  release: 7.0 }, volume: -14 },
-    harmony: { oscillator: { type: 'fatsawtooth', count: 3, spread: 20 }, envelope: { attack: 2.5,  decay: 0.5, sustain: 0.9,  release: 8.0 }, volume: -17 },
+    chord:   { oscillator: { type: 'fatsawtooth', count: 2, spread: 20 }, envelope: { attack: 1.0,  decay: 0.5, sustain: 0.9,  release: 7.0 }, volume: -14 },
+    harmony: { oscillator: { type: 'fatsawtooth', count: 2, spread: 15 }, envelope: { attack: 2.5,  decay: 0.5, sustain: 0.9,  release: 8.0 }, volume: -17 },
     subBass: { oscillator: { type: 'sawtooth' },                          envelope: { attack: 0.6,  decay: 0.4, sustain: 0.9,  release: 6.0 }, volume: -11 },
   },
 
