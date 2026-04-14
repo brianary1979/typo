@@ -83,7 +83,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>typo</h1>
-        <p className="tagline">you can't play a wrong note</p>
+        <p className="tagline">music from the universe</p>
       </header>
 
       <Controls
