@@ -14,6 +14,7 @@ export function useAudio(root, scaleName, presetName) {
   const padRef        = useRef(null);
   const chordRef      = useRef(null);
   const harmonyRef    = useRef(null);
+  const subBassRef    = useRef(null); // MonoSynth — root in oct2
   const masterGainRef = useRef(null);
 
   // Voices
@@ -24,7 +25,6 @@ export function useAudio(root, scaleName, presetName) {
   const moodRef       = useRef({ density: 0.55, tension: 0, userPitchWeights: {}, userDensityBoost: 0 });
 
   // Loops
-  const chordLoopRef  = useRef(null);
   const metaLoopRef   = useRef(null);
   const v1LoopRef     = useRef(null);
   const v2LoopRef     = useRef(null);
@@ -37,15 +37,12 @@ export function useAudio(root, scaleName, presetName) {
   const startTimeRef     = useRef(0);
   const keypressTimesRef = useRef([]);
   const nextChordTimeRef = useRef(null);
-
-  // Current preset release times — used by stopAll to know what to restore
   const releaseTimesRef  = useRef(null);
 
   useEffect(() => {
     keyMapRef.current = buildKeyMap(root, scaleName);
   }, [root, scaleName]);
 
-  // Apply a preset to existing synths (called on preset change after start)
   const applyPreset = useCallback((name) => {
     const p = PRESETS[name] ?? PRESETS.ethereal;
     v1SynthRef.current?.set(p.v1);
@@ -54,7 +51,7 @@ export function useAudio(root, scaleName, presetName) {
     padRef.current?.set(p.pad);
     chordRef.current?.set(p.chord);
     harmonyRef.current?.set(p.harmony);
-    // Cache current release times for stopAll
+    if (subBassRef.current && p.subBass) subBassRef.current.set(p.subBass);
     releaseTimesRef.current = {
       v1: p.v1.envelope.release, v1mod: p.v1.modulationEnvelope?.release,
       v2: p.v2.envelope.release,
@@ -62,6 +59,7 @@ export function useAudio(root, scaleName, presetName) {
       pad:     p.pad.envelope.release,
       chord:   p.chord.envelope.release,
       harmony: p.harmony.envelope.release,
+      subBass: p.subBass?.envelope.release ?? 5.0,
     };
   }, []);
 
@@ -104,7 +102,7 @@ export function useAudio(root, scaleName, presetName) {
     brightnessLFO.start();
     wetLFO.start();
 
-    // ── Synths — built from preset ──────────────────────────────────────────
+    // ── Synths ──────────────────────────────────────────────────────────────
     v1SynthRef.current = new Tone.PolySynth(Tone.FMSynth, preset.v1).connect(lpf);
     v2SynthRef.current = new Tone.PolySynth(Tone.Synth,   preset.v2).connect(lpf);
     v3SynthRef.current = new Tone.PolySynth(Tone.Synth,   preset.v3).connect(lpf);
@@ -112,7 +110,13 @@ export function useAudio(root, scaleName, presetName) {
     chordRef.current   = new Tone.PolySynth(Tone.Synth,   preset.chord).connect(reverb);
     harmonyRef.current = new Tone.PolySynth(Tone.Synth,   preset.harmony).connect(reverb);
 
-    // Cache initial release times
+    // Sub-bass: MonoSynth, root in oct2, HPF at 55Hz before reverb to prevent extreme rumble
+    const subBassHpf = new Tone.Filter({ frequency: 55, type: 'highpass' }).connect(reverb);
+    subBassRef.current = new Tone.MonoSynth({
+      ...preset.subBass,
+      portamento: 0,
+    }).connect(subBassHpf);
+
     releaseTimesRef.current = {
       v1: preset.v1.envelope.release, v1mod: preset.v1.modulationEnvelope?.release,
       v2: preset.v2.envelope.release,
@@ -120,6 +124,7 @@ export function useAudio(root, scaleName, presetName) {
       pad:     preset.pad.envelope.release,
       chord:   preset.chord.envelope.release,
       harmony: preset.harmony.envelope.release,
+      subBass: preset.subBass?.envelope.release ?? 5.0,
     };
 
     // ── Generative voices ───────────────────────────────────────────────────
@@ -153,11 +158,16 @@ export function useAudio(root, scaleName, presetName) {
     function fireChord(time) {
       const result = progressionRef.current?.();
       if (!result) return;
-      const { chord, rootlessPad, duration } = result;
+      const { chord, rootlessPad, subBassNote, duration } = result;
       harmonicCtx.current = { arpPool: buildArpPool(chord), chordMidis: chord.map(noteToMidi) };
+
       chordRef.current?.triggerAttackRelease(chord, '2m', time);
       harmonyRef.current?.releaseAll();
       harmonyRef.current?.triggerAttackRelease(rootlessPad, duration, time + 0.05);
+
+      // Sub-bass: trigger attack (MonoSynth auto-releases previous note)
+      subBassRef.current?.triggerAttack(subBassNote, time + 0.1);
+
       const durationSec = Tone.Time(duration).toSeconds();
       nextChordTimeRef.current = time + durationSec;
       Tone.getDraw().schedule(() => {
@@ -165,10 +175,12 @@ export function useAudio(root, scaleName, presetName) {
       }, nextChordTimeRef.current - 0.1);
     }
 
+    // Seed first chord
     const seed = progressionRef.current();
     harmonicCtx.current = { arpPool: buildArpPool(seed.chord), chordMidis: seed.chord.map(noteToMidi) };
     chordRef.current.triggerAttackRelease(seed.chord, '2m', Tone.now() + 0.1);
     harmonyRef.current.triggerAttackRelease(seed.rootlessPad, seed.duration, Tone.now() + 0.15);
+    subBassRef.current.triggerAttack(seed.subBassNote, Tone.now() + 0.2);
     const firstDurSec = Tone.Time(seed.duration).toSeconds();
     nextChordTimeRef.current = Tone.now() + firstDurSec;
     Tone.getDraw().schedule(() => {
@@ -177,7 +189,7 @@ export function useAudio(root, scaleName, presetName) {
 
     // ── Meta loop ───────────────────────────────────────────────────────────
     metaLoopRef.current = new Tone.Loop(() => {
-      const elapsed = Tone.now() - startTimeRef.current;
+      const elapsed    = Tone.now() - startTimeRef.current;
       const densityLfo = Math.sin(elapsed / 47 * Math.PI * 2);
       const base       = 0.55 + densityLfo * 0.2;
       const boost      = moodRef.current.userDensityBoost ?? 0;
@@ -225,8 +237,11 @@ export function useAudio(root, scaleName, presetName) {
     }
     voicesRef.current.forEach(v => v.reset());
 
-    const rt = releaseTimesRef.current ?? { v1: 2.5, v1mod: 2.0, v2: 3.0, v3: 4.0, pad: 6.0, chord: 5.0, harmony: 6.0 };
-    const synths = [
+    const rt = releaseTimesRef.current ?? {
+      v1: 2.5, v1mod: 2.0, v2: 3.0, v3: 4.0, pad: 6.0, chord: 5.0, harmony: 6.0, subBass: 5.0,
+    };
+
+    const polySynths = [
       { ref: v1SynthRef,  release: rt.v1,     modRelease: rt.v1mod },
       { ref: v2SynthRef,  release: rt.v2 },
       { ref: v3SynthRef,  release: rt.v3 },
@@ -234,32 +249,35 @@ export function useAudio(root, scaleName, presetName) {
       { ref: chordRef,    release: rt.chord },
       { ref: harmonyRef,  release: rt.harmony },
     ];
-    synths.forEach(({ ref }) => {
+    polySynths.forEach(({ ref }) => {
       const s = ref.current;
       if (!s) return;
       s.set({ envelope: { release: 0.05 } });
       if (s.get().modulationEnvelope !== undefined) s.set({ modulationEnvelope: { release: 0.05 } });
     });
+    polySynths.forEach(({ ref }) => ref.current?.releaseAll());
 
-    [v1SynthRef, v2SynthRef, v3SynthRef, padRef, chordRef, harmonyRef]
-      .forEach(r => r.current?.releaseAll());
+    // MonoSynth sub-bass: collapse release and trigger release
+    subBassRef.current?.set({ envelope: { release: 0.05 } });
+    subBassRef.current?.triggerRelease();
 
     padNotesRef.current              = {};
     moodRef.current.userPitchWeights = {};
     moodRef.current.userDensityBoost = 0;
 
     setTimeout(() => {
-      synths.forEach(({ ref, release, modRelease }) => {
+      polySynths.forEach(({ ref, release, modRelease }) => {
         const s = ref.current;
         if (!s) return;
         s.set({ envelope: { release } });
         if (modRelease !== undefined) s.set({ modulationEnvelope: { release: modRelease } });
       });
+      subBassRef.current?.set({ envelope: { release: rt.subBass } });
       g?.gain.rampTo(1, 0.15);
     }, 200);
   }, []);
 
-  // Key/scale change: flush state, reseed harmonic context
+  // Key/scale change: flush and reseed
   useEffect(() => {
     if (!startedRef.current) return;
     stopAll();
@@ -270,6 +288,7 @@ export function useAudio(root, scaleName, presetName) {
     setTimeout(() => {
       chordRef.current?.triggerAttackRelease(result.chord, '2m', Tone.now() + 0.1);
       harmonyRef.current?.triggerAttackRelease(result.rootlessPad, result.duration, Tone.now() + 0.15);
+      subBassRef.current?.triggerAttack(result.subBassNote, Tone.now() + 0.2);
     }, 250);
   }, [root, scaleName, stopAll]);
 

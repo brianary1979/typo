@@ -1,6 +1,6 @@
-// Instrument presets — each defines synth params for all 6 voices.
-// v1 is PolySynth(FMSynth), rest are PolySynth(Synth).
-// Applied at runtime via .set() so the generative engine stays untouched.
+// Instrument presets — defines synth params for all voices.
+// v1 is PolySynth(FMSynth), v2/v3/pad/chord/harmony are PolySynth(Synth),
+// subBass is MonoSynth. Applied via .set() so the generative engine is untouched.
 
 export const PRESETS = {
   ethereal: {
@@ -17,6 +17,7 @@ export const PRESETS = {
     pad:     { oscillator: { type: 'triangle' }, envelope: { attack: 1.0,  decay: 0.3, sustain: 0.9,  release: 6.0 }, volume: -20 },
     chord:   { oscillator: { type: 'sine' },     envelope: { attack: 0.8,  decay: 0.5, sustain: 0.8,  release: 5.0 }, volume: -16 },
     harmony: { oscillator: { type: 'sine' },     envelope: { attack: 2.5,  decay: 0.5, sustain: 0.85, release: 6.0 }, volume: -19 },
+    subBass: { oscillator: { type: 'sine' },     envelope: { attack: 2.5,  decay: 0.5, sustain: 0.9,  release: 6.0 }, volume: -13 },
   },
 
   strings: {
@@ -33,6 +34,7 @@ export const PRESETS = {
     pad:     { oscillator: { type: 'sawtooth' }, envelope: { attack: 1.5,  decay: 0.3, sustain: 0.9,  release: 7.0 }, volume: -19 },
     chord:   { oscillator: { type: 'sawtooth' }, envelope: { attack: 1.0,  decay: 0.5, sustain: 0.8,  release: 6.0 }, volume: -15 },
     harmony: { oscillator: { type: 'sawtooth' }, envelope: { attack: 2.8,  decay: 0.5, sustain: 0.85, release: 7.0 }, volume: -18 },
+    subBass: { oscillator: { type: 'sawtooth' }, envelope: { attack: 1.0,  decay: 0.4, sustain: 0.9,  release: 6.0 }, volume: -12 },
   },
 
   glass: {
@@ -49,6 +51,7 @@ export const PRESETS = {
     pad:     { oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 1.2,  sustain: 0.15, release: 4.0 }, volume: -18 },
     chord:   { oscillator: { type: 'sine' }, envelope: { attack: 0.05, decay: 0.8,  sustain: 0.1,  release: 4.0 }, volume: -16 },
     harmony: { oscillator: { type: 'sine' }, envelope: { attack: 0.08, decay: 1.0,  sustain: 0.12, release: 5.0 }, volume: -18 },
+    subBass: { oscillator: { type: 'sine' }, envelope: { attack: 0.1,  decay: 1.5,  sustain: 0.2,  release: 5.0 }, volume: -13 },
   },
 
   organ: {
@@ -60,10 +63,11 @@ export const PRESETS = {
       modulationEnvelope: { attack: 0.01, decay: 0.05, sustain: 0.8,  release: 0.2  },
       volume: -13,
     },
-    v2:      { oscillator: { type: 'sine'   }, envelope: { attack: 0.01, decay: 0.05, sustain: 0.9,  release: 0.3 }, volume: -19 },
+    v2:      { oscillator: { type: 'sine'   }, envelope: { attack: 0.01, decay: 0.05, sustain: 0.9,  release: 0.3  }, volume: -19 },
     v3:      { oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.05, sustain: 0.95, release: 0.25 }, volume: -15 },
     pad:     { oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.05, sustain: 0.95, release: 0.3  }, volume: -21 },
     chord:   { oscillator: { type: 'sine'   }, envelope: { attack: 0.02, decay: 0.05, sustain: 0.9,  release: 0.3  }, volume: -17 },
     harmony: { oscillator: { type: 'sine'   }, envelope: { attack: 0.05, decay: 0.05, sustain: 0.9,  release: 0.3  }, volume: -20 },
+    subBass: { oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.05, sustain: 0.95, release: 0.3  }, volume: -14 },
   },
 };
