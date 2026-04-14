@@ -180,6 +180,31 @@ header h1 {
   color: rgba(255,255,255,0.6);
 }
 
+/* Drums toggle */
+.drums-btn {
+  padding: 8px 24px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: lowercase;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.drums-btn.active {
+  border-color: var(--accent);
+  color: var(--text-bright);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.drums-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-bright);
+}
+
 /* Home link */
 .home-link {
   font-size: 11px;

@@ -5,6 +5,7 @@ import { createProgressionGenerator, buildArpPool } from '../lib/chords.js';
 import { noteToMidi } from '../lib/scales.js';
 import { GenerativeVoice } from '../lib/generator.js';
 import { PRESETS } from '../lib/presets.js';
+import { createDrums } from '../lib/drums.js';
 
 export function useAudio(root, scaleName, presetName) {
   // Synths
@@ -16,6 +17,7 @@ export function useAudio(root, scaleName, presetName) {
   const harmonyRef    = useRef(null);
   const subBassRef    = useRef(null); // MonoSynth — root in oct2
   const masterGainRef = useRef(null);
+  const drumsRef      = useRef(null);
 
   // Voices
   const voicesRef     = useRef([]);
@@ -83,6 +85,9 @@ export function useAudio(root, scaleName, presetName) {
     masterGainRef.current = masterGain;
     const compressor = new Tone.Compressor({ threshold: -18, ratio: 3, attack: 0.01, release: 0.2 })
       .connect(masterGain);
+
+    // Drums connect after compression — dry, punchy, not drenched in reverb
+    drumsRef.current = createDrums(compressor);
     const reverb     = new Tone.Reverb({ decay: 7, preDelay: 0.02, wet: 0.5 })
       .connect(compressor);
     const reverbHpf  = new Tone.Filter({ frequency: 120, type: 'highpass' })
@@ -292,5 +297,11 @@ export function useAudio(root, scaleName, presetName) {
     }, 250);
   }, [root, scaleName, stopAll]);
 
-  return { start, playNote, stopNote, stopAll };
+  const toggleDrums = useCallback((enabled) => {
+    if (!drumsRef.current) return;
+    if (enabled) drumsRef.current.start();
+    else         drumsRef.current.stop();
+  }, []);
+
+  return { start, playNote, stopNote, stopAll, toggleDrums };
 }

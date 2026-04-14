@@ -13,9 +13,10 @@ export default function App() {
   const [preset, setPreset] = useState('strings');
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [started, setStarted] = useState(false);
+  const [drumsOn, setDrumsOn] = useState(false);
   const [typed, setTyped]   = useState('');
   const keyMap = buildKeyMap(root, scale);
-  const { start, playNote, stopNote, stopAll } = useAudio(root, scale, preset);
+  const { start, playNote, stopNote, stopAll, toggleDrums } = useAudio(root, scale, preset);
   const heldKeys = useRef(new Set());
 
   const handleStart = useCallback(async () => {
@@ -108,6 +109,19 @@ export default function App() {
         onOrbDown={onOrbDown}
         onOrbUp={onOrbUp}
       />
+
+      {started && (
+        <button
+          className={`drums-btn${drumsOn ? ' active' : ''}`}
+          onClick={() => {
+            const next = !drumsOn;
+            setDrumsOn(next);
+            toggleDrums(next);
+          }}
+        >
+          {drumsOn ? 'drums on' : 'drums off'}
+        </button>
+      )}
 
       <a className="home-link" href="https://bflabby.org">bflabby.org</a>
 
