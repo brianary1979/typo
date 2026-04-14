@@ -109,6 +109,8 @@ export default function App() {
         onOrbUp={onOrbUp}
       />
 
+      <a className="home-link" href="https://bflabby.org">bflabby.org</a>
+
       <ul className="instructions">
         <li>hold 2–3 keys at once and hear how they blend</li>
         <li>do nothing — let the algorithm play by itself</li>
