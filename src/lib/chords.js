@@ -1,12 +1,12 @@
 import { getScaleNotes, midiToNote, SCALES } from './scales.js';
 
 // Functional harmony groups per scale
-// Dorian: P = only degree 3 (IV major — the characteristic Dorian chord)
+// Dorian uses dedicated modal sequence instead — see modalDegrees below
 const HARMONY_GROUPS = {
   major:      { T: [0,2], P: [1,3], D: [4,6] },
   minor:      { T: [0,5], P: [1,3], D: [4,6] },
-  dorian:     { T: [0,2], P: [3],   D: [4,6] },
   mixolydian: { T: [0,2], P: [3,5], D: [6,4] },
+  dorian:     null, // handled as modal — i-IV vamp
   pentatonic: null,
   minor_pent: null,
   hirajoshi:  null,
@@ -18,9 +18,10 @@ const MARKOV = {
   D: { T: 0.75, P: 0.05, D: 0.2  },
 };
 
-const DURATIONS_LONG  = ['4m', '4m', '2m'];
-const DURATIONS_MID   = ['2m', '2m', '1m', '4m'];
-const DURATIONS_SHORT = ['1m', '1m', '2n'];
+const DURATIONS_LONG   = ['4m', '4m', '2m'];
+const DURATIONS_MID    = ['2m', '2m', '1m', '4m'];
+const DURATIONS_SHORT  = ['1m', '1m', '2n'];
+const DURATIONS_DORIAN = ['4m', '4m', '4m', '2m']; // breathe — deadmau5 chords hold long
 
 function rollChordOpts(degree) {
   let sus = null;
@@ -149,17 +150,25 @@ export function createProgressionGenerator(root, scaleName) {
 
   if (isModal) {
     const modalDegrees = {
+      // i-IV vamp with occasional ii and bVII color — the Dorian signature (deadmau5, etc.)
+      dorian:     [0, 3, 0, 3, 0, 3, 1, 3, 0, 3, 0, 6],
       pentatonic: [0, 2, 1, 3, 0, 2, 4, 0],
       minor_pent: [0, 2, 3, 1, 0, 3, 1, 0],
       hirajoshi:  [0, 0, 1, 2, 0, 0, 1, 3],
     };
-    const seq = modalDegrees[scaleName] ?? modalDegrees.pentatonic;
+    const seq       = modalDegrees[scaleName] ?? modalDegrees.pentatonic;
+    const durPool   = scaleName === 'dorian' ? DURATIONS_DORIAN : null;
     let step = 0;
     return function next() {
       const degree = seq[step % seq.length];
       const opts   = rollChordOpts(degree);
-      const isLong = (step % seq.length === 0) || (step % seq.length === seq.length - 1);
-      const dur    = isLong ? pickFrom(DURATIONS_LONG) : pickFrom(DURATIONS_MID);
+      let dur;
+      if (durPool) {
+        dur = pickFrom(durPool);
+      } else {
+        const isLong = (step % seq.length === 0) || (step % seq.length === seq.length - 1);
+        dur = isLong ? pickFrom(DURATIONS_LONG) : pickFrom(DURATIONS_MID);
+      }
       step++;
       return {
         chord:       buildChord(root, scaleName, degree, opts),
