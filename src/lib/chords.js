@@ -21,13 +21,27 @@ const MARKOV = {
 const DURATIONS_LONG   = ['4m', '4m', '2m'];
 const DURATIONS_MID    = ['2m', '2m', '1m', '4m'];
 const DURATIONS_SHORT  = ['1m', '1m', '2n'];
-const DURATIONS_DORIAN = ['4m', '4m', '4m', '2m']; // breathe — deadmau5 chords hold long
+// Dorian durations — weighted heavily to long holds, occasional 2m for motion
+const DURATIONS_DORIAN = ['4m', '4m', '4m', '4m', '4m', '2m', '2m'];
+
+// Dorian weighted transition table — i(0), bIII(2), IV(3), bVII(6)
+// Inspired by deadmau5/progressive house: small floating pool, no fixed cycle
+const DORIAN_TRANSITIONS = {
+  0: { 3: 0.50, 6: 0.25, 2: 0.25 }, // from i  → IV most likely, bVII or bIII for color
+  3: { 0: 0.35, 6: 0.35, 2: 0.30 }, // from IV → floats freely, avoids returning immediately
+  6: { 0: 0.45, 3: 0.40, 2: 0.15 }, // from bVII → resolves to i or IV
+  2: { 0: 0.30, 3: 0.50, 6: 0.20 }, // from bIII → leans toward IV
+};
 
 function rollChordOpts(degree) {
   let sus = null;
   const susRoll = Math.random();
-  if ((degree === 0 || degree === 3 || degree === 4) && susRoll < 0.30) sus = 'sus2';
-  else if ((degree === 4 || degree === 5) && susRoll < 0.20)            sus = 'sus4';
+  // Degree 0 (i): sus2 adds openness — characteristic Dorian drone feel
+  if (degree === 0 && susRoll < 0.35)                                    sus = 'sus2';
+  // Degree 3 (IV): sus4 before resolution = that classic uplifting house moment
+  else if (degree === 3 && susRoll < 0.30)                               sus = 'sus4';
+  else if ((degree === 2 || degree === 4) && susRoll < 0.25)             sus = 'sus2';
+  else if (degree === 5 && susRoll < 0.20)                               sus = 'sus4';
   const extRoll = Math.random();
   const ext = extRoll < 0.60 ? 'add9' : extRoll < 0.90 ? '7th' : null;
   return { sus, ext };
@@ -149,26 +163,35 @@ export function createProgressionGenerator(root, scaleName) {
   const isModal = !groups;
 
   if (isModal) {
+    // Dorian: weighted Markov transitions between i/bIII/IV/bVII — never the same loop twice
+    if (scaleName === 'dorian') {
+      let current = 0;
+      return function next() {
+        const degree = current;
+        const opts   = rollChordOpts(degree);
+        const dur    = pickFrom(DURATIONS_DORIAN);
+        current      = parseInt(pickWeightedObj(DORIAN_TRANSITIONS[degree] ?? DORIAN_TRANSITIONS[0]));
+        return {
+          chord:       buildChord(root, scaleName, degree, opts),
+          rootlessPad: buildRootlessVoicing(root, scaleName, degree, opts),
+          subBassNote: buildSubBassNote(root, scaleName, degree),
+          degree, duration: dur, isModal: true,
+        };
+      };
+    }
+
     const modalDegrees = {
-      // i-IV vamp with occasional ii and bVII color — the Dorian signature (deadmau5, etc.)
-      dorian:     [0, 3, 0, 3, 0, 3, 1, 3, 0, 3, 0, 6],
       pentatonic: [0, 2, 1, 3, 0, 2, 4, 0],
       minor_pent: [0, 2, 3, 1, 0, 3, 1, 0],
       hirajoshi:  [0, 0, 1, 2, 0, 0, 1, 3],
     };
-    const seq       = modalDegrees[scaleName] ?? modalDegrees.pentatonic;
-    const durPool   = scaleName === 'dorian' ? DURATIONS_DORIAN : null;
+    const seq  = modalDegrees[scaleName] ?? modalDegrees.pentatonic;
     let step = 0;
     return function next() {
       const degree = seq[step % seq.length];
       const opts   = rollChordOpts(degree);
-      let dur;
-      if (durPool) {
-        dur = pickFrom(durPool);
-      } else {
-        const isLong = (step % seq.length === 0) || (step % seq.length === seq.length - 1);
-        dur = isLong ? pickFrom(DURATIONS_LONG) : pickFrom(DURATIONS_MID);
-      }
+      const isLong = (step % seq.length === 0) || (step % seq.length === seq.length - 1);
+      const dur    = isLong ? pickFrom(DURATIONS_LONG) : pickFrom(DURATIONS_MID);
       step++;
       return {
         chord:       buildChord(root, scaleName, degree, opts),
