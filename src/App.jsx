@@ -108,6 +108,13 @@ export default function App() {
         onOrbDown={onOrbDown}
         onOrbUp={onOrbUp}
       />
+
+      <ul className="instructions">
+        <li>hold 2–3 keys at once and hear how they blend</li>
+        <li>do nothing — let the algorithm play by itself</li>
+        <li>try different keys and modes for a totally different feel</li>
+        <li>type anything and every word becomes music</li>
+      </ul>
     </div>
   );
 }

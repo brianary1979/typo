@@ -180,6 +180,30 @@ header h1 {
   color: rgba(255,255,255,0.6);
 }
 
+/* Instructions */
+.instructions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.instructions li {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  text-transform: lowercase;
+}
+
+.instructions li::before {
+  content: '— ';
+  color: var(--accent);
+  opacity: 0.5;
+}
+
 @media (max-width: 640px) {
   .app { padding: 24px 12px 40px; gap: 20px; }
   header h1 { font-size: 48px; }
